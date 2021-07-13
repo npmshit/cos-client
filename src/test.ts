@@ -22,20 +22,20 @@ const clientWithAgent = new COSClient({
 
 const TEST_KEY = "OSSClient.data";
 const TEST_DATA = Date.now() + "";
-// const TEST_URL = "http://mat1.gtimg.com/pingjs/ext2020/qqindex2018/dist/img/qq_logo_2x.png";
+const TEST_URL = "http://mat1.gtimg.com/pingjs/ext2020/qqindex2018/dist/img/qq_logo_2x.png";
 
 function getFile(url: string): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    return http.get(url, res => {
+    return http.get(url, (res) => {
       const buffers: any[] = [];
-      res.on("data", chunk => buffers.push(chunk));
+      res.on("data", (chunk) => buffers.push(chunk));
       res.on("end", () => resolve(Buffer.concat(buffers)));
-      res.on("error", err => reject(err));
+      res.on("error", (err) => reject(err));
     });
   });
 }
 
-describe("OSSClient", function() {
+describe("OSSClient", function () {
   const SHARE: any = {};
 
   beforeAll(async () => {
@@ -96,11 +96,11 @@ describe("OSSClient", function() {
     expect(ret.buffer!.toString()).toEqual(TEST_DATA);
   });
 
-  // test("getSignUrl", async () => {
-  //   const url = client.getSignUrl(TEST_KEY);
-  //   const ret = await getFile(url);
-  //   expect(ret.toString()).toEqual(TEST_DATA);
-  // });
+  test("getSignUrl", async () => {
+    const url = client.getSignUrl(TEST_KEY);
+    const ret = await getFile(url);
+    expect(ret.toString()).toEqual(TEST_DATA);
+  });
 
   test("deleteObject", async () => {
     const ret = await client.deleteObject(TEST_KEY);
@@ -109,15 +109,15 @@ describe("OSSClient", function() {
     expect(ret2.code).toBe(404);
   });
 
-  // test("putObjectWithUrl", async () => {
-  //   const url = await client.putObjectWithUrl(TEST_KEY, TEST_URL);
-  //   const org = await getFile(url);
-  //   const dis = await getFile(TEST_URL);
-  //   expect(dis).toEqual(org);
-  // });
+  test("putObjectWithUrl", async () => {
+    const url = await client.putObjectWithUrl(TEST_KEY, TEST_URL);
+    const org = await getFile(url);
+    const dis = await getFile(TEST_URL);
+    expect(dis).toEqual(org);
+  });
 });
 
-describe("fix", function() {
+describe("fix", function () {
   test("fix: get key with multi-///", () => {
     (client as any).prefix = undefined;
     const key = (client as any).getFileKey("//aa/a");

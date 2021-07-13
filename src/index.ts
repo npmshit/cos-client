@@ -69,32 +69,22 @@ function camSafeUrlEncode(str: string) {
     .replace(/\*/g, "%2A");
 }
 
-function getObjectKeys(obj: Record<string, any>, forKey = false) {
-  var list = [];
-  for (var key in obj) {
-    if (obj.hasOwnProperty(key)) {
-      list.push(forKey ? camSafeUrlEncode(key) : key);
-    }
-  }
-  return list.sort(function(a, b) {
-    a = a.toLowerCase();
-    b = b.toLowerCase();
-    return a === b ? 0 : a > b ? 1 : -1;
-  });
-}
-
-function obj2str(obj: Record<string, any>) {
-  let key, val;
+function getObjectInfo(obj: Record<string, any> = {}) {
   const list = [];
-  const keyList = getObjectKeys(obj);
-  for (let i = 0; i < keyList.length; i++) {
-    key = keyList[i];
-    val = obj[key] === undefined || obj[key] === null ? "" : "" + obj[key];
-    key = camSafeUrlEncode(key).toLowerCase();
-    val = camSafeUrlEncode(val) || "";
+  const keys = [];
+  const objKeys = Object.keys(obj)
+    .map((k) => [k, k.toLowerCase()])
+    .sort((a, b) => {
+      return a[1] === b[1] ? 0 : a[1] > b[1] ? 1 : -1;
+    });
+  for (const [k, kl] of objKeys) {
+    const key = camSafeUrlEncode(kl);
+    const v = obj[k] === undefined || obj[k] === null ? "" : "" + obj[k];
+    const val = camSafeUrlEncode(v);
+    keys.push(key);
     list.push(key + "=" + val);
   }
-  return list.join("&");
+  return [keys, list];
 }
 
 export default class COSClient {
@@ -139,45 +129,32 @@ export default class COSClient {
     const qSignAlgorithm = "sha1";
     const qAk = this.secretId;
     const qSignTime = now + ";" + exp;
-    const qKeyTime = now + ";" + exp;
-    const pathname = opts.key.indexOf("/") !== 0 ? "/" + opts.key : opts.key;
-    const qHeaderList = getObjectKeys(headers, true)
-      .join(";")
-      .toLowerCase();
-    const qUrlParamList = getObjectKeys(queryParams, true)
-      .join(";")
-      .toLowerCase();
+    const qKeyTime = qSignTime;
+    const pathname = opts.key[0] !== "/" ? "/" + opts.key : opts.key;
+    const [qHk, qHl] = getObjectInfo(headers);
+    const [qUk, qUl] = getObjectInfo(queryParams);
+    const qHeaderList = qHk.join(";");
+    const qUrlParamList = qUk.join(";");
 
     // 签名算法说明文档：https://www.qcloud.com/document/product/436/7778
     // 步骤一：计算 SignKey
-    const signKey = crypto
-      .createHmac("sha1", this.secretKey)
-      .update(qKeyTime)
-      .digest("hex");
-
+    const signKey = crypto.createHmac("sha1", this.secretKey).update(qKeyTime).digest("hex");
     // 步骤二：构成 FormatString
-    const formatString = Buffer.from([method, pathname, obj2str(queryParams), obj2str(headers), ""].join("\n"), "utf8");
+    const formatString = [method, pathname, qUl.join("&"), qHl.join("&"), ""].join("\n");
     // 步骤三：计算 StringToSign
-    const res = crypto
-      .createHash("sha1")
-      .update(formatString)
-      .digest("hex");
+    const res = crypto.createHash("sha1").update(formatString).digest("hex");
     const stringToSign = ["sha1", qSignTime, res, ""].join("\n");
     // 步骤四：计算 Signature
-    const qSignature = crypto
-      .createHmac("sha1", signKey)
-      .update(stringToSign)
-      .digest("hex");
-
+    const qSignature = crypto.createHmac("sha1", signKey).update(stringToSign).digest("hex");
     // 步骤五：构造 Authorization
     const authorization = [
-      "q-sign-algorithm=" + qSignAlgorithm,
-      "q-ak=" + qAk,
-      "q-sign-time=" + qSignTime,
-      "q-key-time=" + qKeyTime,
-      "q-header-list=" + qHeaderList,
-      "q-url-param-list=" + qUrlParamList,
-      "q-signature=" + qSignature,
+      `q-sign-algorithm=${qSignAlgorithm}`,
+      `q-ak=${qAk}`,
+      `q-sign-time=${qSignTime}`,
+      `q-key-time=${qKeyTime}`,
+      `q-header-list=${qHeaderList}`,
+      `q-url-param-list=${qUrlParamList}`,
+      `q-signature=${qSignature}`,
     ].join("&");
     return authorization;
   }
@@ -189,9 +166,9 @@ export default class COSClient {
 
   private request(params: RequestOptions, data?: Buffer | Readable, raw = false): Promise<IReply> {
     return new Promise((resolve, reject) => {
-      const req = http.request(params, response => {
+      const req = http.request(params, (response) => {
         const buffers: any[] = [];
-        response.on("data", chunk => buffers.push(chunk));
+        response.on("data", (chunk) => buffers.push(chunk));
         response.on("end", () => {
           const buf = Buffer.concat(buffers);
           return resolve({
@@ -201,9 +178,9 @@ export default class COSClient {
             body: raw ? "" : buf.toString("utf8"),
           });
         });
-        response.on("error", err => reject(err));
+        response.on("error", (err) => reject(err));
       });
-      req.on("error", err => reject(err));
+      req.on("error", (err) => reject(err));
       if (Buffer.isBuffer(data)) {
         req.end(data);
       } else if (data && typeof data.pipe === "function") {
@@ -257,23 +234,19 @@ export default class COSClient {
     return this.requestObject("HEAD", key);
   }
 
-  // getSignUrl(key: string, ttl = 60) {
-  //   const expires = parseInt(String(new Date().getTime() / 1000 + ttl), 10);
-  //   const fielkey = this.getFileKey(key);
-  //   const query = [
-  //     `OSSAccessKeyId=${this.accessKeyId}`,
-  //     `Signature=${this.signUrl(fielkey, expires)}`,
-  //     `Expires=${expires}`,
-  //   ];
-  //   return `${this.cdn}/${fielkey}?${query.join("&")}`;
-  // }
+  getSignUrl(key: string, ttl = 60) {
+    const expires = Math.round(Date.now() / 1000) + ttl;
+    const filekey = this.getFileKey(key);
+    const auth = this.getAuth({ method: "GET", key: filekey, expires });
+    return `${this.cdn}/${filekey}?${auth}`;
+  }
 
-  // putObjectWithUrl(key: string, url: string, options?: IPutOption): Promise<string> {
-  //   return new Promise(resolve => {
-  //     (url.indexOf("https") === 0 ? https : http).get(url, async res => {
-  //       await this.putObject(key, res, options);
-  //       resolve(this.getSignUrl(key));
-  //     });
-  //   });
-  // }
+  putObjectWithUrl(key: string, url: string, options?: IPutOption): Promise<string> {
+    return new Promise((resolve) => {
+      (url.indexOf("https") === 0 ? https : http).get(url, async (res) => {
+        await this.putObject(key, res, options);
+        resolve(this.getSignUrl(key));
+      });
+    });
+  }
 }
