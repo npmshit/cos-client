@@ -1,0 +1,67 @@
+{
+  "name": "@blueshit/cos-client",
+  "version": "1.0.0",
+  "description": "简单腾讯云COS客户端",
+  "main": "dist/index.js",
+  "typings": "dist/index.d.ts",
+  "files": [
+    "dist/index.js",
+    "dist/index.d.ts"
+  ],
+  "scripts": {
+    "test": "jest",
+    "tag": "git tag v`node -p 'require(\"./package\").version'`",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "clean": "rm -rf dist",
+    "test:cov": "jest --coverage",
+    "prepublishOnly": "npm run format && npm run clean && tsc && npm run test:cov",
+    "postpublish": "npm run tag && git push && git push --tags"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/npmshit/cos-client.git"
+  },
+  "keywords": [
+    "cos-client",
+    "tencent-cos"
+  ],
+  "author": "Yourtion <yourtion@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/npmshit/cos-client/issues"
+  },
+  "homepage": "https://github.com/npmshit/cos-client#readme",
+  "peerDependencies": {
+    "@types/node": "*"
+  },
+  "devDependencies": {
+    "@types/jest": "^24.0.11",
+    "@types/node": "^11.13.7",
+    "jest": "^24.7.1",
+    "prettier": "^1.17.0",
+    "ts-jest": "^24.0.2",
+    "typescript": "^3.4.5"
+  },
+  "prettier": {
+    "printWidth": 120,
+    "trailingComma": "es5"
+  },
+  "jest": {
+    "transform": {
+      "^.+\\.tsx?$": "ts-jest"
+    },
+    "testRegex": "src/test",
+    "collectCoverageFrom": [
+      "src/index.ts"
+    ],
+    "moduleFileExtensions": [
+      "ts",
+      "js",
+      "json"
+    ]
+  },
+  "dependencies": {
+    "@types/mime": "^2.0.0",
+    "mime": "^2.3.1"
+  }
+}
