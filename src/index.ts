@@ -87,6 +87,8 @@ function getObjectInfo(obj: Record<string, any> = {}) {
   return [keys, list];
 }
 
+const SIGN_ALGO = "sha1";
+
 export default class COSClient {
   private appId: string;
   private secretId: string;
@@ -126,7 +128,6 @@ export default class COSClient {
     const queryParams = { ...opts.query };
     const headers = { ...opts.headers };
     // 要用到的 Authorization 参数列表
-    const qSignAlgorithm = "sha1";
     const qAk = this.secretId;
     const qSignTime = now + ";" + exp;
     const qKeyTime = qSignTime;
@@ -138,17 +139,17 @@ export default class COSClient {
 
     // 签名算法说明文档：https://www.qcloud.com/document/product/436/7778
     // 步骤一：计算 SignKey
-    const signKey = crypto.createHmac("sha1", this.secretKey).update(qKeyTime).digest("hex");
+    const signKey = crypto.createHmac(SIGN_ALGO, this.secretKey).update(qKeyTime).digest("hex");
     // 步骤二：构成 FormatString
     const formatString = [method, pathname, qUl.join("&"), qHl.join("&"), ""].join("\n");
     // 步骤三：计算 StringToSign
-    const res = crypto.createHash("sha1").update(formatString).digest("hex");
-    const stringToSign = ["sha1", qSignTime, res, ""].join("\n");
+    const res = crypto.createHash(SIGN_ALGO).update(formatString).digest("hex");
+    const stringToSign = [SIGN_ALGO, qSignTime, res, ""].join("\n");
     // 步骤四：计算 Signature
-    const qSignature = crypto.createHmac("sha1", signKey).update(stringToSign).digest("hex");
+    const qSignature = crypto.createHmac(SIGN_ALGO, signKey).update(stringToSign).digest("hex");
     // 步骤五：构造 Authorization
     const authorization = [
-      `q-sign-algorithm=${qSignAlgorithm}`,
+      `q-sign-algorithm=${SIGN_ALGO}`,
       `q-ak=${qAk}`,
       `q-sign-time=${qSignTime}`,
       `q-key-time=${qKeyTime}`,
