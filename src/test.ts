@@ -1,32 +1,30 @@
 import COSClient from "./index";
 import http from "http";
+import https from "https";
 
-const client = new COSClient({
-  appId: process.env.TEST_COS_APPID!,
-  secretId: process.env.TEST_COS_ID!,
-  secretKey: process.env.TEST_COS_KEY!,
-  bucket: process.env.TEST_COS_BUCKET!,
-  region: process.env.TEST_COS_REGION!,
-  prefix: process.env.TEST_COS_PREFEX!,
-});
+const appId = process.env.TEST_COS_APPID!;
+const secretId = process.env.TEST_COS_ID!;
+const secretKey = process.env.TEST_COS_KEY!;
+const bucket = process.env.TEST_COS_BUCKET!;
+const region = process.env.TEST_COS_REGION!;
+const prefix = process.env.TEST_COS_PREFEX!;
+
+const config = { appId, secretId, secretKey, bucket, region, prefix };
+const client = new COSClient(config);
 
 const clientWithAgent = new COSClient({
-  appId: process.env.TEST_COS_APPID!,
-  secretId: process.env.TEST_COS_ID!,
-  secretKey: process.env.TEST_COS_KEY!,
-  bucket: process.env.TEST_COS_BUCKET!,
-  region: process.env.TEST_COS_REGION!,
-  prefix: process.env.TEST_COS_PREFEX!,
+  ...config,
+  cdn: `https://${bucket}-${appId}.cos.${region}.myqcloud.com`,
   agent: new http.Agent({ keepAlive: true, keepAliveMsecs: 10000 }),
 });
 
-const TEST_KEY = "OSSClient.data";
+const TEST_KEY = "COSClient.data";
 const TEST_DATA = Date.now() + "";
 const TEST_URL = "http://mat1.gtimg.com/pingjs/ext2020/qqindex2018/dist/img/qq_logo_2x.png";
 
 function getFile(url: string): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    return http.get(url, (res) => {
+    return (url.indexOf("https") === 0 ? https : http).get(url, (res) => {
       const buffers: any[] = [];
       res.on("data", (chunk) => buffers.push(chunk));
       res.on("end", () => resolve(Buffer.concat(buffers)));
@@ -35,7 +33,7 @@ function getFile(url: string): Promise<Buffer> {
   });
 }
 
-describe("OSSClient", function () {
+describe("COSClient", function () {
   const SHARE: any = {};
 
   beforeAll(async () => {
@@ -115,26 +113,27 @@ describe("OSSClient", function () {
     const dis = await getFile(TEST_URL);
     expect(dis).toEqual(org);
   });
+
+  describe("fix", function () {
+    test("fix: get key with multi-///", () => {
+      (client as any).prefix = undefined;
+      const key = (client as any).getFileKey("//aa/a");
+      expect(key).toEqual("aa/a");
+      (client as any).prefix = process.env.TEST_COS_PREFEX;
+    });
+  
+    test("fix: key with space", async () => {
+      const KEY = "COS Client.data";
+      const ret = await clientWithAgent.putObject(KEY, Buffer.from(TEST_DATA));
+      expect(ret.code).toBe(200);
+      expect(ret.headers.etag).toBeDefined();
+      expect(ret.headers["x-cos-hash-crc64ecma"]).toBeDefined();
+      expect(ret.headers["etag"]).toBeDefined();
+      const ret2 = await clientWithAgent.deleteObject(KEY);
+      expect(ret2.code).toBe(204);
+      const ret3 = await clientWithAgent.headObject(KEY);
+      expect(ret3.code).toBe(404);
+    });
+  });
 });
 
-describe("fix", function () {
-  test("fix: get key with multi-///", () => {
-    (client as any).prefix = undefined;
-    const key = (client as any).getFileKey("//aa/a");
-    expect(key).toEqual("aa/a");
-    (client as any).prefix = process.env.TEST_OSS_PREFEX;
-  });
-
-  test("fix: key with space", async () => {
-    const KEY = "OSS Client.data";
-    const ret = await client.putObject(KEY, Buffer.from(TEST_DATA));
-    expect(ret.code).toBe(200);
-    expect(ret.headers.etag).toBeDefined();
-    expect(ret.headers["x-cos-hash-crc64ecma"]).toBeDefined();
-    expect(ret.headers["etag"]).toBeDefined();
-    const ret2 = await client.deleteObject(KEY);
-    expect(ret2.code).toBe(204);
-    const ret3 = await client.headObject(KEY);
-    expect(ret3.code).toBe(404);
-  });
-});
